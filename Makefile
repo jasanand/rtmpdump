@@ -53,6 +53,7 @@ INCRTMP=librtmp/rtmp_sys.h librtmp/rtmp.h librtmp/log.h librtmp/amf.h
 EXT_posix=
 EXT_darwin=
 EXT_mingw=.exe
+EXT_android=
 EXT=$(EXT_$(SYS))
 
 PROGS=rtmpdump rtmpgw rtmpsrv rtmpsuck
