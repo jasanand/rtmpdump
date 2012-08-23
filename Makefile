@@ -7,9 +7,10 @@ LD=$(CROSS_COMPILE)ld
 
 SYS=posix
 #SYS=mingw
+#SYS=android
 
-CRYPTO=OPENSSL
-#CRYPTO=POLARSSL
+#CRYPTO=OPENSSL
+CRYPTO=POLARSSL
 #CRYPTO=GNUTLS
 LIBZ=-lz
 LIB_GNUTLS=-lgnutls -lhogweed -lnettle -lgmp $(LIBZ)
@@ -34,6 +35,7 @@ MANDIR=$(DESTDIR)$(mandir)
 
 LIBS_posix=
 LIBS_darwin=
+LIBS_android=
 LIBS_mingw=-lws2_32 -lwinmm -lgdi32
 LIB_RTMP=-Llibrtmp -lrtmp
 LIBS=$(LIB_RTMP) $(CRYPTO_LIB) $(LIBS_$(SYS)) $(XLIBS)
@@ -41,6 +43,7 @@ LIBS=$(LIB_RTMP) $(CRYPTO_LIB) $(LIBS_$(SYS)) $(XLIBS)
 THREADLIB_posix=-lpthread
 THREADLIB_darwin=-lpthread
 THREADLIB_mingw=
+THREADLIB_android=
 THREADLIB=$(THREADLIB_$(SYS))
 SLIBS=$(THREADLIB) $(LIBS)
 
