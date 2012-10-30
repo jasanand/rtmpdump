@@ -1206,6 +1206,7 @@ RTMP_GetNextMediaPacket(RTMP *r, RTMPPacket *packet)
 		  packet->m_nTimeStamp, packet->m_hasAbsTimestamp,
 		  r->m_mediaStamp);
 #endif
+	      RTMPPacket_Free(packet);
 	      continue;
 	    }
 	  r->m_pausing = 0;
@@ -1215,7 +1216,8 @@ RTMP_GetNextMediaPacket(RTMP *r, RTMPPacket *packet)
   if (bHasMediaPacket)
     r->m_bPlaying = TRUE;
   else if (r->m_sb.sb_timedout && !r->m_pausing)
-    r->m_pauseStamp = r->m_channelTimestamp[r->m_mediaChannel];
+    r->m_pauseStamp = r->m_mediaChannel < r->m_channelsAllocatedIn ?
+                      r->m_channelTimestamp[r->m_mediaChannel] : 0;
 
   return bHasMediaPacket;
 }
@@ -1403,9 +1405,11 @@ ReadN(RTMP *r, char *buffer, int n)
       int nBytes = 0, nRead;
       if (r->Link.protocol & RTMP_FEATURE_HTTP)
         {
+	  int refill = 0;
 	  while (!r->m_resplen)
 	    {
-	      if (r->m_sb.sb_size < 144)
+	      int ret;
+	      if (r->m_sb.sb_size < 13 || refill)
 	        {
 		  if (!r->m_unackd)
 		    HTTP_Post(r, RTMPT_IDLE, "", 1);
@@ -1416,12 +1420,20 @@ ReadN(RTMP *r, char *buffer, int n)
 		      return 0;
 		    }
 		}
-	      if (HTTP_read(r, 0) == -1)
+	      if ((ret = HTTP_read(r, 0)) == -1)
 		{
 		  RTMP_Log(RTMP_LOGDEBUG, "%s, No valid HTTP response found", __FUNCTION__);
 		  RTMP_Close(r);
 		  return 0;
 		}
+              else if (ret == -2)
+                {
+                  refill = 1;
+                }
+              else
+                {
+                  refill = 0;
+                }
 	    }
 	  if (r->m_resplen && !r->m_sb.sb_size)
 	    RTMPSockBuf_Fill(&r->m_sb);
@@ -1987,7 +1999,8 @@ RTMP_SendPause(RTMP *r, int DoPause, int iTime)
 int RTMP_Pause(RTMP *r, int DoPause)
 {
   if (DoPause)
-    r->m_pauseStamp = r->m_channelTimestamp[r->m_mediaChannel];
+    r->m_pauseStamp = r->m_mediaChannel < r->m_channelsAllocatedIn ?
+                      r->m_channelTimestamp[r->m_mediaChannel] : 0;
   return RTMP_SendPause(r, DoPause, r->m_pauseStamp);
 }
 
@@ -2942,7 +2955,8 @@ HandleCtrl(RTMP *r, const RTMPPacket *packet)
 	    break;
 	  if (!r->m_pausing)
 	    {
-	      r->m_pauseStamp = r->m_channelTimestamp[r->m_mediaChannel];
+	      r->m_pauseStamp = r->m_mediaChannel < r->m_channelsAllocatedIn ?
+	                        r->m_channelTimestamp[r->m_mediaChannel] : 0;
 	      RTMP_SendPause(r, TRUE, r->m_pauseStamp);
 	      r->m_pausing = 1;
 	    }
@@ -3086,6 +3100,26 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     }
 
   nSize = packetSize[packet->m_headerType];
+
+  if (packet->m_nChannel >= r->m_channelsAllocatedIn)
+    {
+      int n = packet->m_nChannel + 10;
+      int *timestamp = realloc(r->m_channelTimestamp, sizeof(int) * n);
+      RTMPPacket **packets = realloc(r->m_vecChannelsIn, sizeof(RTMPPacket*) * n);
+      if (!timestamp)
+        free(r->m_channelTimestamp);
+      if (!packets)
+        free(r->m_vecChannelsIn);
+      r->m_channelTimestamp = timestamp;
+      r->m_vecChannelsIn = packets;
+      if (!timestamp || !packets) {
+        r->m_channelsAllocatedIn = 0;
+        return FALSE;
+      }
+      memset(r->m_channelTimestamp + r->m_channelsAllocatedIn, 0, sizeof(int) * (n - r->m_channelsAllocatedIn));
+      memset(r->m_vecChannelsIn + r->m_channelsAllocatedIn, 0, sizeof(RTMPPacket*) * (n - r->m_channelsAllocatedIn));
+      r->m_channelsAllocatedIn = n;
+    }
 
   if (nSize == RTMP_LARGE_HEADER_SIZE)	/* if we get a full header the timestamp is absolute */
     packet->m_hasAbsTimestamp = TRUE;
@@ -3362,7 +3396,7 @@ RTMP_SendChunk(RTMP *r, RTMPChunk *chunk)
 int
 RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
 {
-  const RTMPPacket *prevPacket = r->m_vecChannelsOut[packet->m_nChannel];
+  const RTMPPacket *prevPacket;
   uint32_t last = 0;
   int nSize;
   int hSize, cSize;
@@ -3372,6 +3406,22 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
   int nChunkSize;
   int tlen;
 
+  if (packet->m_nChannel >= r->m_channelsAllocatedOut)
+    {
+      int n = packet->m_nChannel + 10;
+      RTMPPacket **packets = realloc(r->m_vecChannelsOut, sizeof(RTMPPacket*) * n);
+      if (!packets) {
+        free(r->m_vecChannelsOut);
+        r->m_vecChannelsOut = NULL;
+        r->m_channelsAllocatedOut = 0;
+        return FALSE;
+      }
+      r->m_vecChannelsOut = packets;
+      memset(r->m_vecChannelsOut + r->m_channelsAllocatedOut, 0, sizeof(RTMPPacket*) * (n - r->m_channelsAllocatedOut));
+      r->m_channelsAllocatedOut = n;
+    }
+
+  prevPacket = r->m_vecChannelsOut[packet->m_nChannel];
   if (prevPacket && packet->m_headerType != RTMP_PACKET_SIZE_LARGE)
     {
       /* compress a bit by using the prev packet's attributes */
@@ -3608,7 +3658,7 @@ RTMP_Close(RTMP *r)
   r->m_write.m_nBytesRead = 0;
   RTMPPacket_Free(&r->m_write);
 
-  for (i = 0; i < RTMP_CHANNELS; i++)
+  for (i = 0; i < r->m_channelsAllocatedIn; i++)
     {
       if (r->m_vecChannelsIn[i])
 	{
@@ -3616,12 +3666,23 @@ RTMP_Close(RTMP *r)
 	  free(r->m_vecChannelsIn[i]);
 	  r->m_vecChannelsIn[i] = NULL;
 	}
+    }
+  free(r->m_vecChannelsIn);
+  r->m_vecChannelsIn = NULL;
+  free(r->m_channelTimestamp);
+  r->m_channelTimestamp = NULL;
+  r->m_channelsAllocatedIn = 0;
+  for (i = 0; i < r->m_channelsAllocatedOut; i++)
+    {
       if (r->m_vecChannelsOut[i])
 	{
 	  free(r->m_vecChannelsOut[i]);
 	  r->m_vecChannelsOut[i] = NULL;
 	}
     }
+  free(r->m_vecChannelsOut);
+  r->m_vecChannelsOut = NULL;
+  r->m_channelsAllocatedOut = 0;
   AV_clear(r->m_methodCalls, r->m_numCalls);
   r->m_methodCalls = NULL;
   r->m_numCalls = 0;
@@ -3673,7 +3734,7 @@ RTMPSockBuf_Fill(RTMPSockBuf *sb)
 
   while (1)
     {
-      nBytes = sizeof(sb->sb_buf) - sb->sb_size - (sb->sb_start - sb->sb_buf);
+      nBytes = sizeof(sb->sb_buf) - 1 - sb->sb_size - (sb->sb_start - sb->sb_buf);
 #if defined(CRYPTO) && !defined(NO_SSL)
       if (sb->sb_ssl)
 	{
@@ -3825,8 +3886,8 @@ HTTP_Post(RTMP *r, RTMPTCmd cmd, const char *buf, int len)
   int hlen = snprintf(hbuf, sizeof(hbuf), "POST /%s%s/%d HTTP/1.1\r\n"
     "Host: %.*s:%d\r\n"
     "Accept: */*\r\n"
-    "User-Agent: Shockwave Flash\n"
-    "Connection: Keep-Alive\n"
+    "User-Agent: Shockwave Flash\r\n"
+    "Connection: Keep-Alive\r\n"
     "Cache-Control: no-cache\r\n"
     "Content-type: application/x-fcs\r\n"
     "Content-length: %d\r\n\r\n", RTMPT_cmds[cmd],
@@ -3846,12 +3907,23 @@ HTTP_read(RTMP *r, int fill)
   char *ptr;
   int hlen;
 
+restart:
   if (fill)
     RTMPSockBuf_Fill(&r->m_sb);
-  if (r->m_sb.sb_size < 144)
+  if (r->m_sb.sb_size < 13) {
+    if (fill)
+      goto restart;
     return -2;
+  }
   if (strncmp(r->m_sb.sb_start, "HTTP/1.1 200 ", 13))
     return -1;
+  r->m_sb.sb_start[r->m_sb.sb_size] = '\0';
+  if (!strstr(r->m_sb.sb_start, "\r\n\r\n")) {
+    if (fill)
+      goto restart;
+    return -2;
+  }
+
   ptr = r->m_sb.sb_start + sizeof("HTTP/1.1 200");
   while ((ptr = strstr(ptr, "Content-"))) {
     if (!strncasecmp(ptr+8, "length:", 7)) break;
@@ -3864,6 +3936,12 @@ HTTP_read(RTMP *r, int fill)
   if (!ptr)
     return -1;
   ptr += 4;
+  if (ptr + (r->m_clientID.av_val ? 1 : hlen) > r->m_sb.sb_start + r->m_sb.sb_size)
+    {
+      if (fill)
+        goto restart;
+      return -2;
+    }
   r->m_sb.sb_size -= ptr - r->m_sb.sb_start;
   r->m_sb.sb_start = ptr;
   r->m_unackd--;
