@@ -33,6 +33,7 @@
 
 #ifdef CRYPTO
 #ifdef USE_POLARSSL
+#include <polarssl/version.h>
 #include <polarssl/havege.h>
 #elif defined(USE_GNUTLS)
 #include <gnutls/gnutls.h>
@@ -320,6 +321,31 @@ static const char DEFAULT_FLASH_VER[] = DEF_VERSTR;
 const AVal RTMP_DefaultFlashVer =
   { (char *)DEFAULT_FLASH_VER, sizeof(DEFAULT_FLASH_VER) - 1 };
 
+static void
+SocksSetup(RTMP *r, AVal *sockshost)
+{
+  if (sockshost->av_len)
+    {
+      const char *socksport = strchr(sockshost->av_val, ':');
+      char *hostname = strdup(sockshost->av_val);
+
+      if (socksport)
+	hostname[socksport - sockshost->av_val] = '\0';
+      r->Link.sockshost.av_val = hostname;
+      r->Link.sockshost.av_len = strlen(hostname);
+
+      r->Link.socksport = socksport ? atoi(socksport + 1) : 1080;
+      RTMP_Log(RTMP_LOGDEBUG, "Connecting via SOCKS proxy: %s:%d", r->Link.sockshost.av_val,
+	  r->Link.socksport);
+    }
+  else
+    {
+      r->Link.sockshost.av_val = NULL;
+      r->Link.sockshost.av_len = 0;
+      r->Link.socksport = 0;
+    }
+}
+
 void
 RTMP_SetupStream(RTMP *r,
 		 int protocol,
@@ -384,26 +410,7 @@ RTMP_SetupStream(RTMP *r,
     }
 #endif
 
-  if (sockshost->av_len)
-    {
-      const char *socksport = strchr(sockshost->av_val, ':');
-      char *hostname = strdup(sockshost->av_val);
-
-      if (socksport)
-	hostname[socksport - sockshost->av_val] = '\0';
-      r->Link.sockshost.av_val = hostname;
-      r->Link.sockshost.av_len = strlen(hostname);
-
-      r->Link.socksport = socksport ? atoi(socksport + 1) : 1080;
-      RTMP_Log(RTMP_LOGDEBUG, "Connecting via SOCKS proxy: %s:%d", r->Link.sockshost.av_val,
-	  r->Link.socksport);
-    }
-  else
-    {
-      r->Link.sockshost.av_val = NULL;
-      r->Link.sockshost.av_len = 0;
-      r->Link.socksport = 0;
-    }
+  SocksSetup(r, sockshost);
 
   if (tcUrl && tcUrl->av_len)
     r->Link.tcUrl = *tcUrl;
@@ -755,6 +762,8 @@ int RTMP_SetupURL(RTMP *r, char *url)
     RTMP_HashSWF(r->Link.swfUrl.av_val, &r->Link.SWFSize,
 	  (unsigned char *)r->Link.SWFHash, r->Link.swfAge);
 #endif
+
+  SocksSetup(r, &r->Link.sockshost);
 
   if (r->Link.port == 0)
     {
