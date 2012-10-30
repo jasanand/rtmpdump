@@ -46,6 +46,7 @@ SOX=$(SOX_$(SYS))
 SO_posix=.$(SOX).$(SO_VERSION)
 SO_darwin=.$(SO_VERSION).$(SOX)
 SO_mingw=-$(SO_VERSION).$(SOX)
+SO_android=.$(SOX).$(SO_VERSION)
 SO_EXT=$(SO_$(SYS))
 
 SODIR_posix=$(LIBDIR)
