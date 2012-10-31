@@ -65,8 +65,7 @@
 #include <polarssl/net.h>
 #include <polarssl/ssl.h>
 #include <polarssl/havege.h>
-#if POLARSSL_VERSION_NUMBER < 0x01010100
-#define havege_random
+#if POLARSSL_VERSION_NUMBER < 0x01010000
 #endif
 typedef struct tls_ctx {
 	havege_state hs;
