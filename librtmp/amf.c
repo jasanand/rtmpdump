@@ -708,6 +708,7 @@ AMFProp_Decode(AMFObjectProperty *prop, const char *pBuffer, int nSize,
 	if (nRes == -1)
 	  return -1;
 	nSize -= nRes;
+	prop->p_type = AMF_OBJECT;
 	break;
       }
     case AMF_OBJECT_END:
@@ -725,6 +726,7 @@ AMFProp_Decode(AMFObjectProperty *prop, const char *pBuffer, int nSize,
 	if (nRes == -1)
 	  return -1;
 	nSize -= nRes;
+	prop->p_type = AMF_OBJECT;
 	break;
       }
     case AMF_DATE:
