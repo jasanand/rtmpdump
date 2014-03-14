@@ -32,7 +32,7 @@ ThreadCreate(thrfunc *routine, void *args)
   HANDLE thd;
 
   thd = (HANDLE) _beginthread(routine, 0, args);
-  if (thd == INVALID_HANDLE_VALUE)
+  if (thd == -1L)
     RTMP_LogPrintf("%s, _beginthread failed with %d\n", __FUNCTION__, errno);
 
   return thd;

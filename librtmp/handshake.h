@@ -760,7 +760,7 @@ HandShake(RTMP * r, int FP9HandShake)
 #else
   ip = (int32_t *)(clientsig+8);
   for (i = 2; i < RTMP_SIG_SIZE/4; i++)
-    *ip++ = ((rand() & 0xFFFF) << 16) | (rand() & 0xFFFF);
+    *ip++ = rand();
 #endif
 
   /* set handshake digest */
@@ -914,7 +914,7 @@ HandShake(RTMP * r, int FP9HandShake)
 #else
       ip = (int32_t *)reply;
       for (i = 0; i < RTMP_SIG_SIZE/4; i++)
-        *ip++ = ((rand() & 0xFFFF) << 16) | (rand() & 0xFFFF);
+        *ip++ = rand();
 #endif
       /* calculate response now */
       signatureResp = reply+RTMP_SIG_SIZE-SHA256_DIGEST_LENGTH;
@@ -965,18 +965,8 @@ HandShake(RTMP * r, int FP9HandShake)
     __FUNCTION__);
   RTMP_LogHex(RTMP_LOGDEBUG, reply, RTMP_SIG_SIZE);
 #endif
-  if (r->Link.CombineConnectPacket)
-    {
-      char *HandshakeResponse = malloc(RTMP_SIG_SIZE);
-      memcpy(HandshakeResponse, (char *) reply, RTMP_SIG_SIZE);
-      r->Link.HandshakeResponse.av_val = HandshakeResponse;
-      r->Link.HandshakeResponse.av_len = RTMP_SIG_SIZE;
-    }
-  else
-    {
-      if (!WriteN(r, (char *) reply, RTMP_SIG_SIZE))
-        return FALSE;
-    }
+  if (!WriteN(r, (char *)reply, RTMP_SIG_SIZE))
+    return FALSE;
 
   /* 2nd part of handshake */
   if (ReadN(r, (char *)serversig, RTMP_SIG_SIZE) != RTMP_SIG_SIZE)
@@ -1109,7 +1099,7 @@ SHandShake(RTMP * r)
     {
       encrypted = FALSE;
     }
-  else if (type == 6 || type == 8 || type == 9)
+  else if (type == 6 || type == 8)
     {
       offalg = 1;
       encrypted = TRUE;
@@ -1158,7 +1148,7 @@ SHandShake(RTMP * r)
 #else
   ip = (int32_t *)(serversig+8);
   for (i = 2; i < RTMP_SIG_SIZE/4; i++)
-    *ip++ = ((rand() & 0xFFFF) << 16) | (rand() & 0xFFFF);
+    *ip++ = rand();
 #endif
 
   /* set handshake digest */

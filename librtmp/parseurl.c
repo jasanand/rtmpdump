@@ -34,7 +34,6 @@ int RTMP_ParseURL(const char *url, int *protocol, AVal *host, unsigned int *port
 	AVal *playpath, AVal *app)
 {
 	char *p, *end, *col, *ques, *slash;
-	int doubleSlash = FALSE;
 
 	RTMP_Log(RTMP_LOGDEBUG, "Parsing...");
 
@@ -141,19 +140,11 @@ parsehost:
 	char *slash2, *slash3 = NULL, *slash4 = NULL;
 	int applen, appnamelen;
 
-    if ((slash2 = strstr(p, "//")))
-      {
-        doubleSlash = TRUE;
-        slash2 += 1;
-      }
-    else
-      {
-        slash2 = strchr(p, '/');
-        if (slash2)
-          slash3 = strchr(slash2 + 1, '/');
-        if (slash3)
-          slash4 = strchr(slash3 + 1, '/');
-      }
+	slash2 = strchr(p, '/');
+	if(slash2)
+		slash3 = strchr(slash2+1, '/');
+	if(slash3)
+		slash4 = strchr(slash3+1, '/');
 
 	applen = end-p; /* ondemand, pass all parameters as app */
 	appnamelen = applen; /* ondemand length */
@@ -177,8 +168,6 @@ parsehost:
 		applen = appnamelen;
 	}
 
-	if ((!ques) && doubleSlash)
-	  applen -= 1;
 	app->av_val = p;
 	app->av_len = applen;
 	RTMP_Log(RTMP_LOGDEBUG, "Parsed app     : %.*s", applen, p);
