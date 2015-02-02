@@ -749,6 +749,8 @@ void usage(char *prog)
 	  RTMP_LogPrintf
 	    ("--token|-T key          Key for SecureToken response\n");
 	  RTMP_LogPrintf
+	    ("--ccommand|-K key       Send custom command before play\n");
+	  RTMP_LogPrintf
 	    ("--jtv|-j JSON           Authentication token for Justin.tv legacy servers\n");
 	  RTMP_LogPrintf
 	    ("--weeb|-J string        Authentication token for weeb.tv servers\n");
@@ -801,6 +803,7 @@ main(int argc, char **argv)
   AVal subscribepath = { 0, 0 };
   AVal usherToken = { 0, 0 }; // Justin.tv auth token
   AVal WeebToken = { 0, 0 };  // Weeb.tv auth token
+  AVal ccomm = { 0, 0 };
   int port = -1;
   int protocol = RTMP_PROTOCOL_UNDEFINED;
   int retries = 0;
@@ -902,6 +905,7 @@ main(int argc, char **argv)
     {"start", 1, NULL, 'A'},
     {"stop", 1, NULL, 'B'},
     {"token", 1, NULL, 'T'},
+    {"ccommand", 1, NULL, 'K'},
     {"hashes", 0, NULL, '#'},
     {"debug", 0, NULL, 'z'},
     {"quiet", 0, NULL, 'q'},
@@ -913,7 +917,7 @@ main(int argc, char **argv)
 
   while ((opt =
 	  getopt_long(argc, argv,
-                      "hVveqzRr:s:t:i:p:a:b:f:o:u:C:n:c:l:y:Ym:k:d:A:B:T:w:x:W:X:S:#j:J:",
+                      "hVveqzRr:s:t:i:p:a:b:f:o:u:C:n:c:l:y:Ym:k:d:A:B:T:K:w:x:W:X:S:#j:J:",
 		      longopts, NULL)) != -1)
     {
       switch (opt)
@@ -1045,7 +1049,7 @@ main(int argc, char **argv)
 		  port = parsedPort;
 		if (playpath.av_len == 0 && parsedPlaypath.av_len)
 		  {
-		    playpath = parsedPlaypath;
+                    playpath = AVcopy(parsedPlaypath);
 		  }
 		if (protocol == RTMP_PROTOCOL_UNDEFINED)
 		  protocol = parsedProtocol;
@@ -1111,6 +1115,9 @@ main(int argc, char **argv)
 	  RTMP_SetOpt(&rtmp, &av_token, &token);
 	  }
 	  break;
+        case 'K':
+          STR2AVAL(ccomm, optarg);
+          break;
 	case '#':
 	  bHashes = TRUE;
 	  break;
@@ -1251,7 +1258,8 @@ main(int argc, char **argv)
     {
       RTMP_SetupStream(&rtmp, protocol, &hostname, port, &sockshost, &playpath,
                        &tcUrl, &swfUrl, &pageUrl, &app, &auth, &swfHash, swfSize,
-                       &flashVer, &subscribepath, &usherToken, &WeebToken, dSeek, dStopOffset, bLiveStream, timeout);
+                       &flashVer, &subscribepath, &usherToken, &WeebToken, &ccomm,
+                       dSeek, dStopOffset, bLiveStream, timeout);
     }
   else
     {

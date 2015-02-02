@@ -96,6 +96,7 @@ typedef struct
   AVal flashVer;
   AVal token;
   AVal subscribepath;
+  AVal ccomm;
   AVal usherToken; // Justin.tv auth token
   AVal WeebToken;  // Weeb.tv auth token
   AVal sockshost;
@@ -557,8 +558,8 @@ void processTCPrequest(STREAMING_SERVER * server,	// server socket and state (ou
   if (!req.fullUrl.av_len)
     {
       RTMP_SetupStream(&rtmp, req.protocol, &req.hostname, req.rtmpport, &req.sockshost,
-                       &req.playpath, &req.tcUrl, &req.swfUrl, &req.pageUrl, &req.app, &req.auth, &req.swfHash, req.swfSize, &req.flashVer, &req.subscribepath, &req.usherToken, &req.WeebToken, dSeek, req.dStopOffset,
-                       req.bLiveStream, req.timeout);
+                       &req.playpath, &req.tcUrl, &req.swfUrl, &req.pageUrl, &req.app, &req.auth, &req.swfHash, req.swfSize, &req.flashVer, &req.subscribepath,
+                       &req.usherToken, &req.WeebToken, &req.ccomm, dSeek, req.dStopOffset, req.bLiveStream, req.timeout);
     }
   else
     {
@@ -976,6 +977,9 @@ ParseOption(char opt, char *arg, RTMP_REQUEST * req)
     case 'J':
       STR2AVAL(req->WeebToken, arg);
       break;
+    case 'K':
+      STR2AVAL(req->ccomm, arg);
+      break;
     default:
       RTMP_LogPrintf("unknown option: %c, arg: %s\n", opt, arg);
       return FALSE;
@@ -1049,6 +1053,7 @@ main(int argc, char **argv)
     {"verbose", 0, NULL, 'V'},
     {"jtv", 1, NULL, 'j'},
     {"weeb", 1, NULL, 'J'},
+    {"ccommand", 1, NULL, 'K'},
     {0, 0, 0, 0}
   };
 
@@ -1124,6 +1129,8 @@ main(int argc, char **argv)
 	  RTMP_LogPrintf
 	    ("--token|-T key          Key for SecureToken response\n");
 	  RTMP_LogPrintf
+	    ("--ccommand|-K key       Send custom command before play\n");
+          RTMP_LogPrintf
 	    ("--jtv|-j JSON           Authentication token for Justin.tv legacy servers\n");
 	  RTMP_LogPrintf
 	    ("--weeb|-J string        Authentication token for weeb.tv servers\n");

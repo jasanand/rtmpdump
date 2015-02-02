@@ -177,7 +177,7 @@ parsehost:
 		applen = appnamelen;
 	}
 
-	if ((!ques) && doubleSlash)
+	if (doubleSlash)
 	  applen -= 1;
 	app->av_val = p;
 	app->av_len = applen;

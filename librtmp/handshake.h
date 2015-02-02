@@ -707,7 +707,7 @@ HandShake(RTMP * r, int FP9HandShake)
   uint32_t uptime;
 
   uint8_t clientbuf[RTMP_SIG_SIZE + 4], *clientsig=clientbuf+4;
-  uint8_t serversig[RTMP_SIG_SIZE], client2[RTMP_SIG_SIZE], *reply;
+  uint8_t serversig[RTMP_SIG_SIZE], serversig1[RTMP_SIG_SIZE], client2[RTMP_SIG_SIZE], *reply;
   uint8_t type;
   getoff *getdh = NULL, *getdig = NULL;
 
@@ -825,6 +825,8 @@ HandShake(RTMP * r, int FP9HandShake)
 
   if (ReadN(r, (char *)serversig, RTMP_SIG_SIZE) != RTMP_SIG_SIZE)
     return FALSE;
+  if (ReadN(r, (char *) serversig1, RTMP_SIG_SIZE) != RTMP_SIG_SIZE)
+    return FALSE;
 
   /* decode server response */
   memcpy(&uptime, serversig, 4);
@@ -834,7 +836,7 @@ HandShake(RTMP * r, int FP9HandShake)
   RTMP_Log(RTMP_LOGDEBUG, "%s: FMS Version   : %d.%d.%d.%d", __FUNCTION__, serversig[4],
       serversig[5], serversig[6], serversig[7]);
 
-  if (FP9HandShake && type == 3 && !serversig[4])
+  if (FP9HandShake && type == 3 && (!serversig[4] || !serversig1[4]))
     FP9HandShake = FALSE;
 
 #ifdef _DEBUG
@@ -978,13 +980,9 @@ HandShake(RTMP * r, int FP9HandShake)
         return FALSE;
     }
 
-  /* 2nd part of handshake */
-  if (ReadN(r, (char *)serversig, RTMP_SIG_SIZE) != RTMP_SIG_SIZE)
-    return FALSE;
-
 #ifdef _DEBUG
   RTMP_Log(RTMP_LOGDEBUG, "%s: 2nd handshake: ", __FUNCTION__);
-  RTMP_LogHex(RTMP_LOGDEBUG, serversig, RTMP_SIG_SIZE);
+  RTMP_LogHex(RTMP_LOGDEBUG, serversig1, RTMP_SIG_SIZE);
 #endif
 
   if (FP9HandShake)
@@ -992,21 +990,21 @@ HandShake(RTMP * r, int FP9HandShake)
       uint8_t signature[SHA256_DIGEST_LENGTH];
       uint8_t digest[SHA256_DIGEST_LENGTH];
 
-      if (serversig[4] == 0 && serversig[5] == 0 && serversig[6] == 0
-	  && serversig[7] == 0)
+      if (serversig1[4] == 0 && serversig1[5] == 0 && serversig1[6] == 0
+	  && serversig1[7] == 0)
 	{
 	  RTMP_Log(RTMP_LOGDEBUG,
 	      "%s: Wait, did the server just refuse signed authentication?",
 	      __FUNCTION__);
 	}
       RTMP_Log(RTMP_LOGDEBUG, "%s: Server sent signature:", __FUNCTION__);
-      RTMP_LogHex(RTMP_LOGDEBUG, &serversig[RTMP_SIG_SIZE - SHA256_DIGEST_LENGTH],
+      RTMP_LogHex(RTMP_LOGDEBUG, &serversig1[RTMP_SIG_SIZE - SHA256_DIGEST_LENGTH],
 	     SHA256_DIGEST_LENGTH);
 
       /* verify server response */
       HMACsha256(&clientsig[digestPosClient], SHA256_DIGEST_LENGTH,
 		 GenuineFMSKey, sizeof(GenuineFMSKey), digest);
-      HMACsha256(serversig, RTMP_SIG_SIZE - SHA256_DIGEST_LENGTH, digest,
+      HMACsha256(serversig1, RTMP_SIG_SIZE - SHA256_DIGEST_LENGTH, digest,
 		 SHA256_DIGEST_LENGTH, signature);
 
       /* show some information */
@@ -1034,7 +1032,7 @@ HandShake(RTMP * r, int FP9HandShake)
       RTMP_Log(RTMP_LOGDEBUG, "%s: Signature calculated:", __FUNCTION__);
       RTMP_LogHex(RTMP_LOGDEBUG, signature, SHA256_DIGEST_LENGTH);
       if (memcmp
-	  (signature, &serversig[RTMP_SIG_SIZE - SHA256_DIGEST_LENGTH],
+	  (signature, &serversig1[RTMP_SIG_SIZE - SHA256_DIGEST_LENGTH],
 	   SHA256_DIGEST_LENGTH) != 0)
 	{
 	  RTMP_Log(RTMP_LOGWARNING, "%s: Server not genuine Adobe!", __FUNCTION__);
@@ -1067,7 +1065,7 @@ HandShake(RTMP * r, int FP9HandShake)
     }
   else
     {
-      if (memcmp(serversig, clientsig, RTMP_SIG_SIZE) != 0)
+      if (memcmp(serversig1, clientsig, RTMP_SIG_SIZE) != 0)
 	{
 	  RTMP_Log(RTMP_LOGWARNING, "%s: client signature does not match!",
 	      __FUNCTION__);
