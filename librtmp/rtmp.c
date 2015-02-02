@@ -2021,7 +2021,7 @@ SAVC(live);
 SAVC(record);
 
 static int
-SendMipsPublish(RTMP *r)
+SendDynamicPublish(RTMP *r)
 {
   RTMPPacket packet;
   char pbuf[1024], *pend = pbuf + sizeof(pbuf);
@@ -3111,12 +3111,15 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
 	  methodInvoked.av_val);
 
       
-      if (AVMATCH(&methodInvoked, &av_gaolVanusPobeleVoKosata))//shani
+      if ((AVMATCH(&methodInvoked, &av_gaolVanusPobeleVoKosata)
+      || (r->Link.ccomm.av_len>0 && r->m_dynamicPublishSupport==1 && strcmp(methodInvoked.av_val,r->m_SpecialCommandbuf)==0) )
+      )//shani
       {//mips returns the id which we need to use to call the publish function
-      
-            RTMP_Log(RTMP_LOGINFO, "mips function returned the id");
+            //turn off the dyanamic publish flag so that we dont keep checking it
+            r->m_dynamicPublishSupport==0;
+            RTMP_Log(RTMP_LOGINFO, "mips/others function returned the id");
             r->m_publish_id= (double) AMFProp_GetNumber(AMF_GetProp(&obj, NULL, 3));
-            RTMP_Log(RTMP_LOGINFO, "mips id %.0f",r->m_publish_id);
+            RTMP_Log(RTMP_LOGINFO, " id %.0f",r->m_publish_id);
             RTMP_SendCreateStream(r);
 
       }
@@ -3242,8 +3245,21 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
                 SendCommand(r, params[0], TRUE);
               else
                 SendCommand(r, params[0], FALSE);
-              RTMP_SendCreateStream(r);
-              RTMP_Log(RTMP_LOGDEBUG, "overriding inbuilt site specific authentication with -K switch");
+                
+              //added a new parameter which would tell is if we need to wait for the result
+              //and publish is based on the id returned
+              if ((param_count > 1) && (strcasecmp(params[2], "TRUE") == 0))
+                {
+                    RTMP_Log(RTMP_LOGDEBUG, "overriding and not sedning createStream yet inbuilt site specific authentication with -K switch and True");
+                    r->m_dynamicPublishSupport=1;
+                    r->m_SpecialCommandbuf=  params[0];
+                }
+                else
+                {
+                    r->m_dynamicPublishSupport=0;
+                    RTMP_SendCreateStream(r);
+                }
+                RTMP_Log(RTMP_LOGDEBUG, "overriding inbuilt site specific authentication with -K switch");
             }
           else if (strstr(host, "streamscene.cc") || strstr(pageUrl, "streamscene.cc")
                    || strstr(host, "tsboard.tv") || strstr(pageUrl, "teamstream.in")
@@ -3283,7 +3299,7 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
           else if (strstr(pageUrl, "liveflash.tv"))
             {
               SendCommand(r, "kaskatijaEkonomista", TRUE);
-              RTMP_SendCreateStream(r);
+              //RTMP_SendCreateStream(r);
             }
           else if (strstr(pageUrl, "mips.tv") || strstr(pageUrl, "mipsplayer.com"))
             {
@@ -3392,7 +3408,11 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
               if (r->Link.usherToken.av_len)
                 SendUsherToken(r, &r->Link.usherToken);
                 if (r->m_publish_id>0)//if we have publish id like mips
-                    SendMipsPublish(r);
+                {
+                    RTMP_Log(RTMP_LOGDEBUG, "%f, sending dyamic publish",r->m_publish_id);
+
+                    SendDynamicPublish(r);
+                }
               /* Send the FCSubscribe if live stream or if subscribepath is set */
               if (r->Link.subscribepath.av_len)
                 SendFCSubscribe(r, &r->Link.subscribepath);

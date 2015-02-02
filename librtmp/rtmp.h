@@ -264,6 +264,8 @@ extern "C"
     uint8_t m_bSendEncoding;
     uint8_t m_bSendCounter;
     double m_publish_id;		/* returned in _result from mips for their function */
+    char *m_SpecialCommandbuf; // store the special command
+    int m_dynamicPublishSupport;
 
     int m_numInvokes;
     int m_numCalls;
