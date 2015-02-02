@@ -3550,6 +3550,15 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
           r->Link.redirected = FALSE;
           RTMP_Close(r);
           RTMP_Log(RTMP_LOGINFO, "trying to connect with redirected url");
+          if (r->Link.port == 0)//problem in android
+	    {
+           if (r->Link.protocol & RTMP_FEATURE_SSL)
+                r->Link.port = 443;
+              else if (r->Link.protocol & RTMP_FEATURE_HTTP)
+                r->Link.port = 80;
+              else
+                r->Link.port = 1935;
+	    }
           RTMP_Connect(r, NULL);
         }
       else
