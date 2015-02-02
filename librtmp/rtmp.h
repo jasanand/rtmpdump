@@ -263,6 +263,7 @@ extern "C"
     uint8_t m_bPlaying;
     uint8_t m_bSendEncoding;
     uint8_t m_bSendCounter;
+    double m_publish_id;		/* returned in _result from mips for their function */
 
     int m_numInvokes;
     int m_numCalls;
@@ -378,6 +379,7 @@ extern "C"
   void RTMP_DropRequest(RTMP *r, int i, int freeit);
   int RTMP_Read(RTMP *r, char *buf, int size);
   int RTMP_Write(RTMP *r, const char *buf, int size);
+
 
 /* hashswf.c */
   int RTMP_HashSWF(const char *url, unsigned int *size, unsigned char *hash,

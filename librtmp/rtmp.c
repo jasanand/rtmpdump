@@ -1686,6 +1686,7 @@ SAVC(secureToken);
 SAVC(secureTokenResponse);
 SAVC(type);
 SAVC(nonprivate);
+SAVC(gaolVanusPobeleVoKosata);
 
 static int
 SendConnectPacket(RTMP *r, RTMPPacket *cp)
@@ -2019,6 +2020,40 @@ SAVC(publish);
 SAVC(live);
 SAVC(record);
 
+static int
+SendMipsPublish(RTMP *r)
+{
+  RTMPPacket packet;
+  char pbuf[1024], *pend = pbuf + sizeof(pbuf);
+  char *enc;
+
+  packet.m_nChannel = 0x03;	/* control channel (invoke) */
+  packet.m_headerType = RTMP_PACKET_SIZE_MEDIUM;
+  packet.m_packetType = RTMP_PACKET_TYPE_INVOKE;
+  packet.m_nTimeStamp = 0;
+  packet.m_nInfoField2 = 0;
+  packet.m_hasAbsTimestamp = 0;
+  packet.m_body = pbuf + RTMP_MAX_HEADER_SIZE;
+
+  enc = packet.m_body;
+  enc = AMF_EncodeString(enc, pend, &av_publish);
+  AVal  av_publishid;
+  
+  av_publishid.av_val = malloc(25);
+  sprintf(av_publishid.av_val,"%.0f",r->m_publish_id);
+  av_publishid.av_len=strlen(av_publishid.av_val);
+  enc = AMF_EncodeNumber(enc, pend, ++r->m_numInvokes);
+  *enc++ = AMF_NULL;
+  enc = AMF_EncodeString(enc, pend,&av_publishid);
+  enc = AMF_EncodeString(enc, pend, &av_live);
+
+  if (!enc)
+    return FALSE;
+
+  packet.m_nBodySize = enc - packet.m_body;
+
+  return RTMP_SendPacket(r, &packet, FALSE);
+}
 static int
 SendPublish(RTMP *r)
 {
@@ -3075,7 +3110,17 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
       RTMP_Log(RTMP_LOGDEBUG, "%s, received result for method call <%s>", __FUNCTION__,
 	  methodInvoked.av_val);
 
-      if (AVMATCH(&methodInvoked, &av_connect))
+      
+      if (AVMATCH(&methodInvoked, &av_gaolVanusPobeleVoKosata))//shani
+      {//mips returns the id which we need to use to call the publish function
+      
+            RTMP_Log(RTMP_LOGINFO, "mips function returned the id");
+            r->m_publish_id= (double) AMFProp_GetNumber(AMF_GetProp(&obj, NULL, 3));
+            RTMP_Log(RTMP_LOGINFO, "mips id %.0f",r->m_publish_id);
+            RTMP_SendCreateStream(r);
+
+      }
+      else if (AVMATCH(&methodInvoked, &av_connect))
 	{
 	  if (r->Link.token.av_len)
 	    {
@@ -3243,7 +3288,7 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
           else if (strstr(pageUrl, "mips.tv") || strstr(pageUrl, "mipsplayer.com"))
             {
               SendCommand(r, "gaolVanusPobeleVoKosata", TRUE);
-              RTMP_SendCreateStream(r);
+              //RTMP_SendCreateStream(r); #mips now sending id
             }
           else if (strstr(pageUrl, "streamify.tv"))
             {
@@ -3346,6 +3391,8 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
               /* Authenticate on Justin.tv legacy servers before sending FCSubscribe */
               if (r->Link.usherToken.av_len)
                 SendUsherToken(r, &r->Link.usherToken);
+                if (r->m_publish_id>0)//if we have publish id like mips
+                    SendMipsPublish(r);
               /* Send the FCSubscribe if live stream or if subscribepath is set */
               if (r->Link.subscribepath.av_len)
                 SendFCSubscribe(r, &r->Link.subscribepath);
@@ -3507,8 +3554,11 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
         }
       else
         {
-          RTMP_Log(RTMP_LOGERROR, "rtmp server requested close");
-          RTMP_Close(r);
+          RTMP_Log(RTMP_LOGERROR, "rtmp server requested close..");
+          if ((r->Link.lFlags & RTMP_LF_LIVE) &&  (strstr(pageUrl, "streamlive.to")))
+            RTMP_Log(RTMP_LOGERROR, "Ignoring close when its LIVE...");//ignore when running with  streamlive.to
+        else            
+            RTMP_Close(r);
         }
     }
   else if (AVMATCH(&method, &av_onStatus))
