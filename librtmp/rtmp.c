@@ -70,6 +70,7 @@ TLS_CTX RTMP_TLS_ctx;
 #define RTMP_SIG_SIZE 1536
 #define RTMP_LARGE_HEADER_SIZE 12
 #define HEX2BIN(a) (((a)&0x40)?((a)&0xf)+9:((a)&0xf))
+#define STR2AVAL(av,str)	av.av_val = str; av.av_len = strlen(av.av_val)
 
 static const int packetSize[] = { 12, 8, 4, 1 };
 
@@ -469,6 +470,7 @@ RTMP_SetupStream(RTMP *r,
   RTMP_Log(RTMP_LOGDEBUG, "Hostname : %.*s", host->av_len, host->av_val);
   RTMP_Log(RTMP_LOGDEBUG, "Port     : %d", port);
   RTMP_Log(RTMP_LOGDEBUG, "Playpath : %s", playpath->av_val);
+  RTMP_Log(RTMP_LOGDEBUG, "page : %s", pageUrl->av_val);
 
   if (tcUrl && tcUrl->av_val)
     RTMP_Log(RTMP_LOGDEBUG, "tcUrl    : %s", tcUrl->av_val);
@@ -538,6 +540,35 @@ RTMP_SetupStream(RTMP *r,
     r->Link.WeebToken = *WeebToken;
   if (ccomm && ccomm->av_len)
     r->Link.ccomm = *ccomm;
+
+  else if (pageUrl && pageUrl->av_len && strstr( r->Link.pageUrl.av_val,"/===K===")>0)
+  {//since other users like kodi can't yet send the K parameter, it would part of Url like
+  //http://whatwhatver/m/r$$K$$KVal1$KVal2$KVal3
+    RTMP_Log(RTMP_LOGDEBUG, "K Parameter as part of PageUrl passed %s", r->Link.pageUrl.av_val);
+ 
+    char* kIndex=strstr(r->Link.pageUrl.av_val,"/===K===");
+    AVal newccomm = { 0, 0 };
+    newccomm.av_val = kIndex+8;//start after the token 
+    newccomm.av_len = strlen(newccomm.av_val)  ;
+    int i=0;
+    while(kIndex[i]!='\0')
+     {
+           if(kIndex[i]=='=')
+           {
+               kIndex[i]=';';
+           }  
+           i++; 
+     }
+    
+    r->Link.ccomm = newccomm;
+ 
+    kIndex[0]='\0' ;
+//    r->Link.pageUrl.av_val[kIndex]='\0';
+    r->Link.pageUrl.av_len = strlen(r->Link.pageUrl.av_val); 
+   RTMP_Log(RTMP_LOGDEBUG, "page is %s as and K is %s", r->Link.pageUrl.av_val,r->Link.ccomm.av_val);
+    
+  }
+  
   r->Link.seekTime = dStart;
   r->Link.stopTime = dStop;
   if (bLiveStream)
@@ -3116,7 +3147,7 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
       )//shani
       {//mips returns the id which we need to use to call the publish function
             //turn off the dyanamic publish flag so that we dont keep checking it
-            r->m_dynamicPublishSupport==0;
+            r->m_dynamicPublishSupport=0;
             RTMP_Log(RTMP_LOGINFO, "mips/others function returned the id");
             r->m_publish_id= (double) AMFProp_GetNumber(AMF_GetProp(&obj, NULL, 3));
             RTMP_Log(RTMP_LOGINFO, " id %.0f",r->m_publish_id);
