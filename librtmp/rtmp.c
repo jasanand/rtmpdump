@@ -3116,7 +3116,7 @@ HandleInvoke(RTMP *r, const char *body, unsigned int nBodySize)
       )//shani
       {//mips returns the id which we need to use to call the publish function
             //turn off the dyanamic publish flag so that we dont keep checking it
-            r->m_dynamicPublishSupport==0;
+            r->m_dynamicPublishSupport=0;
             RTMP_Log(RTMP_LOGINFO, "mips/others function returned the id");
             r->m_publish_id= (double) AMFProp_GetNumber(AMF_GetProp(&obj, NULL, 3));
             RTMP_Log(RTMP_LOGINFO, " id %.0f",r->m_publish_id);
